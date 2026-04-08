@@ -1,0 +1,74 @@
+name: Predictive Engine Maintenance — ML Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  ml-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Set up Python 3.9
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # Install all dependencies
+      - name: Install Requirements
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ML Step for Data Preparation
+      - name: Data Preparation
+        run: |
+          python prepare_data.py
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - name: Model Building and Experimentation
+        run: |
+          python train.py
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      # ML Step for Validate Deployment App
+      - name: Validate Streamlit App
+        run: |
+          python -m py_compile app/app.py
+          echo "app/app.py syntax check passed"
+
+      # ML Step for Deploying App to Hugging Face Space
+      - name: Deploy to Hugging Face Space
+        run: |
+          python deploy.py
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      # Auto-push artifacts back to main branch
+      - name: Commit and Push Artifacts to Main
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            engine-predictive-maintenance/reports/experiments/tuned_parameters_log.csv \
+            engine-predictive-maintenance/reports/experiments/evaluation_results.csv \
+          git diff --quiet && git diff --staged --quiet \
+            || git commit -m "ci: auto-update model reports and metadata [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pipeline complete ──────────────────────────────────────────────
+      - name: Done
+        run: |
+          echo "========================================"
+          echo "End-to-end ML pipeline completed successfully"
+          echo "========================================"
